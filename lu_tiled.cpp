@@ -41,13 +41,9 @@ std::vector<CALC_TYPE> gen_tile(std::size_t row, std::size_t col, std::size_t N,
 
 //return inv
 std::vector<CALC_TYPE> inversion(hpx::shared_future<std::vector<CALC_TYPE>> ft_A,
-                           std::size_t k, std::size_t N)
+                                 std::size_t N)
 {
-   std::ostringstream os;
-   os << "inv k:" << k << " N:" << N << std::endl;
-   std::cout << os.str();
    auto A = ft_A.get();
-
    double tmp;
    std::vector<CALC_TYPE> v;
    v.resize(N * N);
@@ -87,12 +83,8 @@ std::vector<CALC_TYPE> inversion(hpx::shared_future<std::vector<CALC_TYPE>> ft_A
 //A = A * B
 std::vector<CALC_TYPE> pmm(hpx::shared_future<std::vector<CALC_TYPE>> ft_A,
                            hpx::shared_future<std::vector<CALC_TYPE>> ft_B,
-                           std::size_t row, std::size_t col, std::size_t N)
+                           std::size_t N)
 {
-   std::ostringstream os;
-   os << "pmm r:" << row << " c:" << col << " N:" << N << std::endl;
-   std::cout << os.str();
-
    std::vector<CALC_TYPE> v;
    v.resize(N * N);
    auto A = ft_A.get();
@@ -114,12 +106,8 @@ std::vector<CALC_TYPE> pmm(hpx::shared_future<std::vector<CALC_TYPE>> ft_A,
 std::vector<CALC_TYPE> pmm_d(hpx::shared_future<std::vector<CALC_TYPE>> ft_A,
                              hpx::shared_future<std::vector<CALC_TYPE>> ft_B,
                              hpx::shared_future<std::vector<CALC_TYPE>> ft_C,
-                             std::size_t step, std::size_t row, std::size_t col, std::size_t N)
+                             std::size_t N)
 {
-   std::ostringstream os;
-   os << "pmm_d step" << step << " r:" << row << " c:" << col << " N:" << N << std::endl;
-   std::cout << os.str();
-
    auto A = ft_A.get();
    auto B = ft_B.get();
    auto C = ft_C.get();
@@ -143,13 +131,13 @@ void lu_tiled(std::vector<hpx::shared_future<std::vector<CALC_TYPE>>> &ft_tiles,
 
     for (std::size_t k = 0; k < T - 1; ++k)
     {
-       ft_inv[k] = hpx::async(&inversion, ft_tiles[k * T + k], k, N);
+       ft_inv[k] = hpx::async(&inversion, ft_tiles[k * T + k], N);
        for (std::size_t i = k + 1; i < T; ++i)
        {
-          ft_tiles[i * T + k] = hpx::async(&pmm, ft_tiles[i * T + k], ft_inv[k], i, k, N);
+          ft_tiles[i * T + k] = hpx::async(&pmm, ft_tiles[i * T + k], ft_inv[k], N);
           for (std::size_t j = k + 1; j < T; ++j)
           {
-             ft_tiles[i * T + j] = hpx::async(&pmm_d, ft_tiles[i * T + k], ft_tiles[k * T + j], ft_tiles[i * T + j], k, i, j, N);
+             ft_tiles[i * T + j] = hpx::async(&pmm_d, ft_tiles[i * T + k], ft_tiles[k * T + j], ft_tiles[i * T + j], N);
           }
        }
     }
