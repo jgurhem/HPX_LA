@@ -11,10 +11,21 @@
 
 #define CALC_TYPE double
 
-std::vector<CALC_TYPE> read_(std::string filename, std::size_t row, std::size_t col, std::size_t N, std::size_t T)
+void print_tile(std::vector<CALC_TYPE> A, std::string id, std::size_t row, std::size_t col, std::size_t N)
+{
+   for(int i = 0; i < N; ++i) {
+      for(int j = 0; j < N; ++j) {
+         std::ostringstream os;
+         os << id << " " << row * N + i << " " << col * N + j << " " << A[i * N + j] << std::endl;
+         std::cout << os.str();
+      }
+   }
+}
+
+std::vector<CALC_TYPE> gen_tile(std::size_t row, std::size_t col, std::size_t N, std::size_t T)
 {
    std::ostringstream os;
-   os << "read r:" << row << " c:" << col << " N:" << N << std::endl;
+   os << "gen r:" << row << " c:" << col << " N:" << N << std::endl;
    std::cout << os.str();
 
    std::vector<CALC_TYPE> v;
@@ -23,9 +34,6 @@ std::vector<CALC_TYPE> read_(std::string filename, std::size_t row, std::size_t 
    for(int i = 0; i < N; ++i) {
       for(int j = 0; j < N; ++j) {
          v[i * N + j] = (double) (std::rand() % 10000 - 5000) / 1000;
-         std::ostringstream os;
-         os << filename << " " << row * N + i << " " << col * N + j << " " << v[i * N + j] << std::endl;
-         std::cout << os.str();
       }
    }
    return v;
@@ -127,34 +135,11 @@ std::vector<CALC_TYPE> pmm_d(hpx::shared_future<std::vector<CALC_TYPE>> ft_A,
    return C;
 }
 
-void write_(std::vector<CALC_TYPE> A, std::string filename, std::size_t row, std::size_t col, std::size_t N)
-{
-   std::ostringstream os;
-   os << "write r:" << row << " c:" << col << " N:" << N << std::endl;
-   std::cout << os.str();
-   for(int i = 0; i < N; ++i) {
-      for(int j = 0; j < N; ++j) {
-         std::ostringstream os;
-         os << filename << " " << row * N + i << " " << col * N + j << " " << A[i * N + j] << std::endl;
-         std::cout << os.str();
-      }
-   }
-}
 
-void lu_tiled(std::size_t N, std::size_t T)
+void lu_tiled(std::vector<hpx::shared_future<std::vector<CALC_TYPE>>> &ft_tiles, std::size_t N, std::size_t T)
 {
-    std::vector<hpx::shared_future<std::vector<CALC_TYPE>>> ft_tiles;
-    ft_tiles.resize(T * T);
     std::vector<hpx::shared_future<std::vector<CALC_TYPE>>> ft_inv;
     ft_inv.resize(T);
-
-    for (std::size_t i = 0; i < T; ++i)
-    {
-       for (std::size_t j = 0; j < T; ++j)
-       {
-          ft_tiles[i * T + j] = hpx::async(&read_, "a.bin", i, j, N, T);
-       }
-    }
 
     for (std::size_t k = 0; k < T - 1; ++k)
     {
@@ -169,22 +154,51 @@ void lu_tiled(std::size_t N, std::size_t T)
        }
     }
 
-    for (std::size_t i = 0; i < T; ++i)
-    {
-       for (std::size_t j = 0; j < T; ++j)
-       {
-          write_(ft_tiles[i * T + j].get(), "lu.bin", i, j, N);
-       }
-    }
 }
 
 int hpx_main(boost::program_options::variables_map& vm)
 {
     std::size_t N = vm["N"].as<std::size_t>();
     std::size_t T = vm["T"].as<std::size_t>();
+    std::string out = vm["out"].as<std::string>();
 
     hpx::util::high_resolution_timer t;
-    lu_tiled(N, T);
+
+    std::vector<hpx::shared_future<std::vector<CALC_TYPE>>> A_tiles;
+    A_tiles.resize(T * T);
+
+    for (std::size_t i = 0; i < T; ++i)
+    {
+       for (std::size_t j = 0; j < T; ++j)
+       {
+          A_tiles[i * T + j] = hpx::async(&gen_tile, i, j, N, T);
+       }
+    }
+
+    if (out == "debug")
+    {
+       for (std::size_t i = 0; i < T; ++i)
+       {
+          for (std::size_t j = 0; j < T; ++j)
+          {
+             print_tile(A_tiles[i * T + j].get(), "a", i, j, N);
+          }
+       }
+    }
+
+    lu_tiled(A_tiles, N, T);
+
+    if (out == "debug")
+    {
+       for (std::size_t i = 0; i < T; ++i)
+       {
+          for (std::size_t j = 0; j < T; ++j)
+          {
+             print_tile(A_tiles[i * T + j].get(), "lu", i, j, N);
+          }
+       }
+    }
+
     double elapsed = t.elapsed();
     std::cout << "Elapsed " << elapsed << " s\n";
     return hpx::finalize();
@@ -200,6 +214,8 @@ int main(int argc, char* argv[])
          "Dimension of each Tile (N*N elements per tile)")
         ("T", value<std::size_t>()->default_value(10),
          "Number of Tiles in each dimension (T*T tiles)")
+        ("out", value<std::string>()->default_value("no"),
+         "(debug) => print matrices in coo format")
     ;
 
     return hpx::init(desc_commandline, argc, argv);
