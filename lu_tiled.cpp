@@ -24,10 +24,6 @@ void print_tile(std::vector<CALC_TYPE> A, std::string id, std::size_t row, std::
 
 std::vector<CALC_TYPE> gen_tile(std::size_t row, std::size_t col, std::size_t N, std::size_t T)
 {
-   std::ostringstream os;
-   os << "gen r:" << row << " c:" << col << " N:" << N << std::endl;
-   std::cout << os.str();
-
    std::vector<CALC_TYPE> v;
    v.resize(N * N);
    std::srand(row * T + col);
