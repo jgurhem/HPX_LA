@@ -127,13 +127,13 @@ void lu_tiled(std::vector<hpx::shared_future<std::vector<CALC_TYPE>>> &ft_tiles,
 
     for (std::size_t k = 0; k < T - 1; ++k)
     {
-       ft_inv[k] = hpx::async(&inversion, ft_tiles[k * T + k], N);
+       ft_inv[k] = hpx::dataflow(&inversion, ft_tiles[k * T + k], N);
        for (std::size_t i = k + 1; i < T; ++i)
        {
-          ft_tiles[i * T + k] = hpx::async(&pmm, ft_tiles[i * T + k], ft_inv[k], N);
+          ft_tiles[i * T + k] = hpx::dataflow(&pmm, ft_tiles[i * T + k], ft_inv[k], N);
           for (std::size_t j = k + 1; j < T; ++j)
           {
-             ft_tiles[i * T + j] = hpx::async(&pmm_d, ft_tiles[i * T + k], ft_tiles[k * T + j], ft_tiles[i * T + j], N);
+             ft_tiles[i * T + j] = hpx::dataflow(&pmm_d, ft_tiles[i * T + k], ft_tiles[k * T + j], ft_tiles[i * T + j], N);
           }
        }
     }
@@ -155,7 +155,7 @@ int hpx_main(boost::program_options::variables_map& vm)
     {
        for (std::size_t j = 0; j < T; ++j)
        {
-          A_tiles[i * T + j] = hpx::async(&gen_tile, i, j, N, T);
+          A_tiles[i * T + j] = hpx::dataflow(&gen_tile, i, j, N, T);
        }
     }
 
