@@ -235,16 +235,17 @@ struct stepper
     // Our data for one time step
     typedef std::vector<partition> space;
 
-    partition_data inv_core(partition_data& A)
+    static partition_data& inv_core(partition_data const& A_, partition_data & v)
     {
         double tmp;
-        partition_data v(A.dim());
+        partition_data A(A_.size());
 
         for (int i = 0; i < A.dim(); ++i)
         {
             for (int j = 0; j < A.dim(); ++j)
             {
                 v[i * A.dim() + j] = 0;
+                A[i * A.dim() + j] = A_[i * A.dim() + j];
             }
             v[i * A.dim() + i] = 1;
         }
@@ -281,7 +282,7 @@ struct stepper
     }
 
     //A = A * B
-    partition_data& pmm_core(partition_data& A, partition_data& B)
+    static partition_data& pmm_core(partition_data & A, partition_data const& B)
     {
         partition_data v(A);
 
@@ -301,8 +302,8 @@ struct stepper
     }
 
     //C = C - A * B
-    partition_data& pmm_d_core(
-        partition_data& A, partition_data& B, partition_data& C)
+    static partition_data& pmm_d_core(
+        partition_data const& A, partition_data const& B, partition_data & C)
     {
         // i and j can be parallalized
         for (int i = 0; i < A.dim(); ++i)
@@ -324,9 +325,10 @@ struct stepper
         using hpx::util::unwrapping;
 
         hpx::shared_future<partition_data> A_data = A_p.get_data();
+        hpx::shared_future<partition_data> inv_data = inv_p.get_data();
         return dataflow(hpx::launch::async,
-            unwrapping([inv_p](partition_data const& A) -> partition {
-                partition_data& m_inv = stepper::inv_core(A);
+            unwrapping([inv_p](partition_data const& A, partition_data& inv) -> partition {
+                partition_data& m_inv = stepper::inv_core(A, inv);
                 return partition(inv_p.get_id(), m_inv);
             }),
             A_data);
@@ -340,7 +342,7 @@ struct stepper
         hpx::shared_future<partition_data> A_data = A_p.get_data();
         hpx::shared_future<partition_data> B_data = B_p.get_data();
         return dataflow(hpx::launch::async,
-            unwrapping([A_p](partition_data const& A,
+            unwrapping([A_p](partition_data & A,
                            partition_data const& B) -> partition {
                 partition_data& r = stepper::pmm_core(A, B);
                 return partition(A_p.get_id(), r);
@@ -359,7 +361,7 @@ struct stepper
         hpx::shared_future<partition_data> C_data = C_p.get_data();
         return dataflow(hpx::launch::async,
             unwrapping([C_p](partition_data const& A, partition_data const& B,
-                           partition_data const& C) -> partition {
+                           partition_data & C) -> partition {
                 partition_data& r = stepper::pmm_d_core(A, B, C);
                 return partition(C_p.get_id(), r);
             }),
