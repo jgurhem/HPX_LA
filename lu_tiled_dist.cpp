@@ -13,11 +13,6 @@
 #include <vector>
 
 ///////////////////////////////////////////////////////////////////////////////
-// Command-line variables
-std::size_t T =
-    10;    // number of submatrices/tiles in each dimension of the global matrix
-std::size_t N = 10;    // dimension of a submatrix
-
 inline std::size_t idx(std::size_t i, std::size_t j, std::size_t s)
 {
     return i * s + j;
@@ -38,6 +33,7 @@ private:
 public:
     partition_data()
       : n_(0)
+      , t_(0)
       , i_(0)
       , j_(0)
     {
@@ -48,16 +44,18 @@ public:
       : data_(
             std::allocator<double>().allocate(n * n), n * n, buffer_type::take)
       , n_(n)
+      , t_(0)
       , i_(0)
       , j_(0)
     {
     }
 
     // Create a new (initialized) partition of the given size.
-    partition_data(std::size_t n, std::size_t i, std::size_t j)
+    partition_data(std::size_t n, std::size_t t, std::size_t i, std::size_t j)
       : data_(
             std::allocator<double>().allocate(n * n), n * n, buffer_type::take)
       , n_(n)
+      , t_(t)
       , i_(i)
       , j_(j)
     {
@@ -69,6 +67,7 @@ public:
     partition_data(partition_data const& base)
       : data_(base.data_.data(), 1, buffer_type::reference)
       , n_(base.n_)
+      , t_(base.t_)
       , i_(base.i_)
       , j_(base.j_)
     {
@@ -93,6 +92,11 @@ public:
         return n_;
     }
 
+    std::size_t nt() const
+    {
+        return t_;
+    }
+
     std::size_t pos_i() const
     {
         return i_;
@@ -112,12 +116,13 @@ private:
     template <typename Archive>
     void serialize(Archive& ar, const unsigned int version)
     {
-        ar& data_& n_& i_& j_;
+        ar& data_& n_& t_& i_& j_;
     }
 
 private:
     buffer_type data_;
     std::size_t n_;
+    std::size_t t_;
     std::size_t i_;
     std::size_t j_;
 };
@@ -128,7 +133,7 @@ std::ostream& operator<<(std::ostream& os, partition_data const& c)
     {
         for (std::size_t j = 0; j != c.dim(); ++j)
         {
-            os << c.pos_i() * T + i << " " << c.pos_j() * T + j << " " << c[i * c.dim() + j]
+            os << c.pos_i() * c.nt() + i << " " << c.pos_j() * c.nt() + j << " " << c[i * c.dim() + j]
                << std::endl;
         }
     }
@@ -149,8 +154,8 @@ struct partition_server : hpx::components::component_base<partition_server>
     {
     }
 
-    partition_server(std::size_t n, std::size_t i, std::size_t j)
-      : data_(n, i, j)
+    partition_server(std::size_t n, std::size_t t, std::size_t i, std::size_t j)
+      : data_(n, t, i, j)
     {
     }
 
@@ -194,8 +199,8 @@ struct partition : hpx::components::client_base<partition, partition_server>
     partition() {}
 
     // Create new component on locality 'where' and initialize the held data
-    partition(hpx::id_type where, std::size_t n, std::size_t i, std::size_t j)
-      : base_type(hpx::new_<partition_server>(where, n, i, j))
+    partition(hpx::id_type where, std::size_t n, std::size_t t, std::size_t i, std::size_t j)
+      : base_type(hpx::new_<partition_server>(where, n, t, i, j))
     {
     }
 
@@ -235,10 +240,11 @@ struct stepper
     // Our data for one time step
     typedef std::vector<partition> space;
 
-    static partition_data& inv_core(partition_data const& A_, partition_data & v)
+    static partition_data inv_core(partition_data const& A_)
     {
         double tmp;
-        partition_data A(A_.size());
+        partition_data A(A_.dim());
+        partition_data v(A_.dim());
 
         for (int i = 0; i < A.dim(); ++i)
         {
@@ -282,41 +288,44 @@ struct stepper
     }
 
     //A = A * B
-    static partition_data& pmm_core(partition_data & A, partition_data const& B)
+    static partition_data pmm_core(partition_data const& A, partition_data const& B)
     {
-        partition_data v(A);
+        partition_data r(A.dim());
 
         // i and j can be parallalized
         for (int i = 0; i < A.dim(); ++i)
         {
             for (int j = 0; j < A.dim(); ++j)
             {
-                A[i * A.dim() + j] = 0;
+                r[i * A.dim() + j] = 0;
                 for (int k = 0; k < A.dim(); ++k)
                 {
-                    A[i * A.dim() + j] += v[i * A.dim() + k] * B[k * A.dim() + j];
+                    r[i * A.dim() + j] += A[i * A.dim() + k] * B[k * A.dim() + j];
                 }
             }
         }
-        return A;
+        return r;
     }
 
     //C = C - A * B
-    static partition_data& pmm_d_core(
-        partition_data const& A, partition_data const& B, partition_data & C)
+    static partition_data pmm_d_core(
+        partition_data const& A, partition_data const& B, partition_data const& C)
     {
+        partition_data r(A.dim());
+
         // i and j can be parallalized
         for (int i = 0; i < A.dim(); ++i)
         {
             for (int j = 0; j < A.dim(); ++j)
             {
+                r[i * A.dim() + j] = C[i * A.dim() + j];
                 for (int k = 0; k < A.dim(); ++k)
                 {
-                    C[i * A.dim() + j] -= A[i * A.dim() + k] * B[k * A.dim() + j];
+                    r[i * A.dim() + j] -= A[i * A.dim() + k] * B[k * A.dim() + j];
                 }
             }
         }
-        return C;
+        return r;
     }
 
     static partition inv_part(partition const& A_p, partition const& inv_p)
@@ -325,10 +334,9 @@ struct stepper
         using hpx::util::unwrapping;
 
         hpx::shared_future<partition_data> A_data = A_p.get_data();
-        hpx::shared_future<partition_data> inv_data = inv_p.get_data();
         return dataflow(hpx::launch::async,
-            unwrapping([inv_p](partition_data const& A, partition_data& inv) -> partition {
-                partition_data& m_inv = stepper::inv_core(A, inv);
+            unwrapping([inv_p](partition_data const& A) -> partition {
+                partition_data m_inv = stepper::inv_core(A);
                 return partition(inv_p.get_id(), m_inv);
             }),
             A_data);
@@ -342,9 +350,9 @@ struct stepper
         hpx::shared_future<partition_data> A_data = A_p.get_data();
         hpx::shared_future<partition_data> B_data = B_p.get_data();
         return dataflow(hpx::launch::async,
-            unwrapping([A_p](partition_data & A,
+            unwrapping([A_p](partition_data const& A,
                            partition_data const& B) -> partition {
-                partition_data& r = stepper::pmm_core(A, B);
+                partition_data r = stepper::pmm_core(A, B);
                 return partition(A_p.get_id(), r);
             }),
             A_data, B_data);
@@ -361,8 +369,8 @@ struct stepper
         hpx::shared_future<partition_data> C_data = C_p.get_data();
         return dataflow(hpx::launch::async,
             unwrapping([C_p](partition_data const& A, partition_data const& B,
-                           partition_data & C) -> partition {
-                partition_data& r = stepper::pmm_d_core(A, B, C);
+                           partition_data const& C) -> partition {
+                partition_data r = stepper::pmm_d_core(A, B, C);
                 return partition(C_p.get_id(), r);
             }),
             A_data, B_data, C_data);
@@ -396,10 +404,10 @@ stepper::space stepper::do_lu(std::size_t T, std::size_t N)
     for (std::size_t i = 0; i != T; ++i)
         for (std::size_t j = 0; j != T; ++j)
             tiles[idx(i, j, T)] =
-                partition(localities[locidx(i, j, T, nl)], N, i, j);
+                partition(localities[locidx(i, j, T, nl)], N, T, i, j);
 
     for (std::size_t i = 0; i != T; ++i)
-        invs[i] = partition(localities[locidx(i, 0, T, nl)], N, i, 0);
+        invs[i] = partition(localities[locidx(i, 0, T, nl)], N, T, i, 0);
 
     inv_part_action act_inv;
     pmm_part_action act_pmm;
