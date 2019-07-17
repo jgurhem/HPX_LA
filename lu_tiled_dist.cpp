@@ -133,7 +133,7 @@ std::ostream& operator<<(std::ostream& os, partition_data const& c)
     {
         for (std::size_t j = 0; j != c.dim(); ++j)
         {
-            os << c.pos_i() * c.nt() + i << " " << c.pos_j() * c.nt() + j << " " << c[i * c.dim() + j]
+            os << c.pos_i() * c.dim() + i << " " << c.pos_j() * c.dim() + j << " " << c[i * c.dim() + j]
                << std::endl;
         }
     }
