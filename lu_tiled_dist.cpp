@@ -61,7 +61,7 @@ public:
     {
         srand(idx(i, j, n));
         for (std::size_t k = 0; k != n * n; ++k)
-            data_[i] = (double) ((rand() % 2000) - 1000) / 100;
+            data_[k] = (double) ((rand() % 2000) - 1000) / 100;
     }
 
     partition_data(partition_data const& base)
