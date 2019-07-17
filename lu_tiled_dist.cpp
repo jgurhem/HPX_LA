@@ -129,6 +129,7 @@ private:
 
 std::ostream& operator<<(std::ostream& os, partition_data const& c)
 {
+    os << "== block i(" << c.pos_i() << ") j(" << c.pos_j() << ")" <<  std::endl;
     for (std::size_t i = 0; i != c.dim(); ++i)
     {
         for (std::size_t j = 0; j != c.dim(); ++j)
@@ -378,7 +379,7 @@ struct stepper
 
     // do all the work on 'np' partitions, 'nx' data points each, for 'nt'
     // time steps
-    space do_lu(std::size_t T, std::size_t N);
+    space do_lu(std::size_t T, std::size_t N, bool print_matrices);
 };
 
 HPX_PLAIN_ACTION(stepper::inv_part, inv_part_action);
@@ -388,7 +389,7 @@ HPX_PLAIN_ACTION(stepper::pmm_d_part, pmm_d_part_action);
 ///////////////////////////////////////////////////////////////////////////////
 // do all the work on 'np' partitions, 'nx' data points each, for 'nt'
 // time steps
-stepper::space stepper::do_lu(std::size_t T, std::size_t N)
+stepper::space stepper::do_lu(std::size_t T, std::size_t N, bool print_matrices)
 {
     using hpx::dataflow;
 
@@ -405,6 +406,16 @@ stepper::space stepper::do_lu(std::size_t T, std::size_t N)
         for (std::size_t j = 0; j != T; ++j)
             tiles[idx(i, j, T)] =
                 partition(localities[locidx(i, j, T, nl)], N, T, i, j);
+
+    if (print_matrices) {
+        std::cout << "== a == " << std::endl;
+        for (std::size_t i = 0; i != T * T; ++i)
+        {
+            tiles[i].get_data().wait();
+            std::cout << tiles[i].get_data().get();
+        }
+        std::cout << "== a == " << std::endl;
+    }
 
     for (std::size_t i = 0; i != T; ++i)
         invs[i] = partition(localities[locidx(i, 0, T, nl)], N, T, i, 0);
@@ -471,21 +482,21 @@ int hpx_main(boost::program_options::variables_map& vm)
     std::uint64_t t = hpx::util::high_resolution_clock::now();
 
     // Execute nt time steps on nx grid points and print the final solution.
-    stepper::space solution = step.do_lu(T, N);
+    stepper::space solution = step.do_lu(T, N, vm.count("print-matrices"));
     for (std::size_t i = 0; i != T * T; ++i)
         solution[i].get_data().wait();
 
     std::uint64_t elapsed = hpx::util::high_resolution_clock::now() - t;
 
     // Print the final solution
-    if (vm.count("results"))
+    if (vm.count("print-matrices"))
     {
-        std::cout << "== lu == ";
+        std::cout << "== lu == " << std::endl;
         for (std::size_t i = 0; i != T * T; ++i)
         {
             std::cout << solution[i].get_data().get();
         }
-        std::cout << "== lu == ";
+        std::cout << "== lu == " << std::endl;
     }
     std::uint64_t const num_worker_threads = hpx::get_num_worker_threads();
     hpx::future<std::uint32_t> locs = hpx::get_num_localities();
@@ -499,7 +510,7 @@ int main(int argc, char* argv[])
 
     options_description desc_commandline;
     desc_commandline.add_options()(
-        "results", "print generated results (default: false)")("N",
+        "print-matrices", "print generated A and computed LU (default: false)")("N",
         value<std::uint64_t>()->default_value(10),
         "Dimension of the submatrices")("T",
         value<std::uint64_t>()->default_value(10),
