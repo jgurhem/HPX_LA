@@ -65,7 +65,7 @@ public:
     }
 
     partition_data(partition_data const& base)
-      : data_(base.data_.data(), 1, buffer_type::reference)
+      : data_(base.data_.data(), base.size(), buffer_type::copy)
       , n_(base.n_)
       , t_(base.t_)
       , i_(base.i_)
@@ -244,7 +244,7 @@ struct stepper
     static partition_data inv_core(partition_data const& A_)
     {
         double tmp;
-        partition_data A(A_.dim());
+        partition_data A(A_);
         partition_data v(A_.dim());
 
         for (int i = 0; i < A.dim(); ++i)
@@ -252,7 +252,6 @@ struct stepper
             for (int j = 0; j < A.dim(); ++j)
             {
                 v[i * A.dim() + j] = 0;
-                A[i * A.dim() + j] = A_[i * A.dim() + j];
             }
             v[i * A.dim() + i] = 1;
         }
@@ -291,7 +290,7 @@ struct stepper
     //A = A * B
     static partition_data pmm_core(partition_data const& A, partition_data const& B)
     {
-        partition_data r(A.dim());
+        partition_data r(A);
 
         // i and j can be parallalized
         for (int i = 0; i < A.dim(); ++i)
@@ -312,14 +311,13 @@ struct stepper
     static partition_data pmm_d_core(
         partition_data const& A, partition_data const& B, partition_data const& C)
     {
-        partition_data r(A.dim());
+        partition_data r(C);
 
         // i and j can be parallalized
         for (int i = 0; i < A.dim(); ++i)
         {
             for (int j = 0; j < A.dim(); ++j)
             {
-                r[i * A.dim() + j] = C[i * A.dim() + j];
                 for (int k = 0; k < A.dim(); ++k)
                 {
                     r[i * A.dim() + j] -= A[i * A.dim() + k] * B[k * A.dim() + j];
