@@ -21,7 +21,10 @@ inline std::size_t idx(std::size_t i, std::size_t j, std::size_t s)
 inline std::size_t locidx(
     std::size_t i, std::size_t j, std::size_t T, std::size_t nl)
 {
-    return i / nl;
+    std::size_t tnl = T / nl;
+    if (T % nl > 0)
+        ++tnl;
+    return i / tnl;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
