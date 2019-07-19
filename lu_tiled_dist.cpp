@@ -488,6 +488,7 @@ int hpx_main(boost::program_options::variables_map& vm)
         solution[i].get_data().wait();
 
     std::uint64_t elapsed = hpx::util::high_resolution_clock::now() - t;
+    std::cout << elapsed << std::endl;
 
     // Print the final solution
     if (vm.count("print-matrices"))
