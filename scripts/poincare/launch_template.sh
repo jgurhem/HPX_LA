@@ -11,7 +11,6 @@
 #@ queue
 #
 
-module purge
-module load gnu/7.3.0 cmake/3.14.1-gnu54 openmpi/2.1.2_intel15.0.0_tm
+. scripts/poincare/load_env.sh
 rm -rf core.*
 bash scripts/run_mpi.sh Poincare blockLU build/lu_tiled_dist NNODES NCORES NBLOCKS DATASIZE BLOCKSIZE test_DATASIZE.json

@@ -14,4 +14,5 @@ sed "s/TIMEWALL/${timewall}/;
      s/BLOCKSIZE/${blocksize}/;
      s/NCORES/${cores}/" scripts/poincare/launch_template.sh > submit_n${nodes}_b${blocks}.sh
 
+. scripts/poincare/load_env.sh
 llsubmit submit_n${nodes}_b${blocks}.sh
