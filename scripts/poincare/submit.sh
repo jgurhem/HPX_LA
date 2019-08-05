@@ -12,7 +12,7 @@ sed "s/TIMEWALL/${timewall}/;
      s/DATASIZE/${datasize}/g;
      s/NBLOCKS/${blocks}/;
      s/BLOCKSIZE/${blocksize}/;
-     s/NCORES/${cores}/" scripts/poincare/launch_template.sh > submit_n${nodes}_b${blocks}.sh
+     s/NCORES/${cores}/" scripts/poincare/launch_template.sh > submit_s${datasize}_n${nodes}_b${blocks}.sh
 
 . scripts/poincare/load_env.sh
-llsubmit submit_n${nodes}_b${blocks}.sh
+llsubmit submit_s${datasize}_n${nodes}_b${blocks}.sh
